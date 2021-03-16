@@ -1,0 +1,3 @@
+descriptor: 'orb'
+matcher: 'flann'
+query_path: 'all_souls_000001.jpg'

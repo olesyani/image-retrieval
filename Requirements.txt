@@ -1,0 +1,1 @@
+Для работы программы необходима версия Python 3.7, а также библиотеки: cv2, matplotlib, numpy, time, os, sys и typing.
