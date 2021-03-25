@@ -49,8 +49,8 @@ def compute_ap(pos: List[str], amb: List[str], ranked_list: List[str]):
     return ap
 
 
-def main():
-    arg1 = 'gt_files_170407/all_souls_1'
+def compute(arg1):
+    # arg1 = 'gt_files_170407/all_souls_2'
     arg2 = 'ranked_list.txt'
     try:
         ranked_list = load_list(arg2)
@@ -64,4 +64,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    compute()
