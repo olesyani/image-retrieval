@@ -146,7 +146,7 @@ if __name__ == "__main__":
             title_array.append(file.replace('_query.txt', ''))
 
     for i in range(len(query_img_array)):
-        query_img = query_img_array
+        query_img = query_img_array[i]
         print(query_img)
         file_name = 'data/' + descriptorsFinder + '/' + query_img[:-4] + '_des.txt'
         des1 = np.loadtxt(file_name).astype('float32')
