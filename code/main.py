@@ -1,128 +1,119 @@
 import cv2 as cv
 import numpy as np
+import time
+import yaml
 import pickle
 import os
-import yaml
-import matplotlib.pyplot as plt
 import compute_ap
 
 
-def Sort(final_list):
-    return sorted(final_list,
-                  reverse=True,
-                  key=lambda x: len(x[4]))
+class KeypointsAndDescriptors:
+    def __init__(self):
+        self.keypoints = []
+        self.descriptors = []
+
+    def read_keypoints(self, des_finder, path):
+        # Считываем ключевые точки из файла
+        file = 'data/' + des_finder + '/' + path + '_kp.txt'
+        f = open(file, 'rb')
+        index = pickle.loads(f.read())
+        f.close()
+        for point in index:
+            tmp = cv.KeyPoint(x=point[0][0], y=point[0][1], _size=point[1], _angle=point[2],
+                              _response=point[3], _octave=point[4], _class_id=point[5])
+            self.keypoints.append(tmp)
+
+    def read_descriptors(self, des_finder, path):
+        # Считываем дескрипторы из файла
+        file = 'data/' + des_finder + '/' + path + '_des.txt'
+        self.descriptors = np.loadtxt(file).astype('float32')
+
+    def write_keypoints_and_descriptors(self, des_finder, path):
+        if des_finder == 'orb':
+            detector = cv.ORB_create()
+        elif des_finder == 'sift':
+            detector = cv.SIFT_create()
+        else:
+            raise NotImplementedError('Wrong value of descriptor')
+
+        initial_img = cv.imread('oxbuild_images/' + path, cv.IMREAD_GRAYSCALE)
+        kp, des = detector.detectAndCompute(initial_img, None)
+        index = []
+        for point in kp:
+            temp = (point.pt, point.size, point.angle, point.response, point.octave,
+                    point.class_id)
+            index.append(temp)
+        path = path.replace('.jpg', '')
+
+        # Записываем ключевые точки в файл
+        file_name = 'data/' + des_finder + '/' + path + '_kp.txt'
+        f = open(file_name, "wb")
+        f.write(pickle.dumps(index, protocol=pickle.HIGHEST_PROTOCOL))
+        f.close()
+
+        # Записываем дескрипторы точки в файл
+        file_name = 'data/' + des_finder + '/' + path + '_des.txt'
+        np.savetxt(file_name, des)
 
 
-def BruteForceMatcher(img1, kp1, des1, img2, kp2, des2):
-    # create BFMatcher object
+def BruteForceMatcher(des1, des2, params, search_params):
+    # Создаем BFMatcher object
     bf = cv.BFMatcher(cv.NORM_L1, crossCheck=False)
     matches = bf.knnMatch(des1, des2, k=2)
-    return findHomography(img1, kp1, img2, kp2, matches)
+    return findHomography(matches)
 
 
-def FlannMatcher(img1, kp1, des1, img2, kp2, des2):
-    # create FLANNMatcher object
-    FLANN_INDEX_KDTREE = 1
-    index_params = dict(algorithm=FLANN_INDEX_KDTREE,
-                        trees=5)
-    search_params = dict(checks=50)
+def FlannMatcher(des1, des2, params, search_params):
+    # Создаем FLANNMatcher object
     des1 = des1.astype(np.float32)
     des2 = des2.astype(np.float32)
-    flann = cv.FlannBasedMatcher(index_params, search_params)
+    flann = cv.FlannBasedMatcher(params, search_params)
     matches = flann.knnMatch(des1, des2, k=2)
-    return findHomography(img1, kp1, img2, kp2, matches)
+    return findHomography(matches)
 
 
-def findHomography(img1, kp1, img2, kp2, matches):
-    # Apply ratio test
+def findHomography(matches):
+    # Находим хорошие пары
     good = []
     for m, n in matches:
         if m.distance < 0.75 * n.distance:
             good.append(m)
 
-    MIN_MATCH_COUNT = 10
+    MIN_MATCH_COUNT = 0
 
     if len(good) > MIN_MATCH_COUNT:
-        src_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
-        dst_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
-        M, mask = cv.findHomography(src_pts, dst_pts, cv.RANSAC, 5.0)
-        matchesMask = mask.ravel().tolist()
-        h, w = img1.shape
-        pts = np.float32([[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]]).reshape(-1, 1, 2)
-        if M is not None:
-            dst = cv.perspectiveTransform(pts, M)
-            img2 = cv.polylines(img2, [np.int32(dst)], True, 255, 3, cv.LINE_AA)
-            draw_params = dict(matchColor=(0, 255, 0),
-                               singlePointColor=None,
-                               matchesMask=matchesMask,
-                               flags=2)
-            # result.append([img1, kp1, img2, kp2, good, draw_params, initial_img_path])
-            return [img1, kp1, img2, kp2, good, draw_params]
-    # print("Not enough matches are found - {}/{}".format(len(good), MIN_MATCH_COUNT))
+        return len(good)
+
     return None
 
 
-def SIFTMatch(img1, kp1, des1, img_path2, matcher):
-    img2 = cv.imread('oxbuild_images/'+img_path2, cv.IMREAD_GRAYSCALE)  # trainImage
-
-    file_name = 'data/sift/' + img_path2[:-4] + '_des.txt'
-    des2 = np.loadtxt(file_name).astype('float32')
-    file_name = file_name.replace('_des', '_kp')
-    f = open(file_name, 'rb')
-    index = pickle.loads(f.read())
-    f.close()
-    kp2 = []
-    for point in index:
-        temp = cv.KeyPoint(x=point[0][0], y=point[0][1], _size=point[1], _angle=point[2],
-                           _response=point[3], _octave=point[4], _class_id=point[5])
-        kp2.append(temp)
-
-    return matcher(img1, kp1, des1, img2, kp2, des2)
-
-
-def ORBMatch(img1, kp1, des1, img_path2, matcher):
-    img2 = cv.imread('oxbuild_images/'+img_path2, cv.IMREAD_GRAYSCALE)  # trainImage
-
-    file_name = 'data/orb/' + img_path2[:-4] + '_des.txt'
-    des2 = np.loadtxt(file_name).astype('float32')
-    file_name = file_name.replace('_des', '_kp')
-    f = open(file_name, 'rb')
-    index = pickle.loads(f.read())
-    f.close()
-    kp2 = []
-    for point in index:
-        temp = cv.KeyPoint(x=point[0][0], y=point[0][1], _size=point[1], _angle=point[2],
-                           _response=point[3], _octave=point[4], _class_id=point[5])
-        kp2.append(temp)
-
-    return matcher(img1, kp1, des1, img2, kp2, des2)
-
-
 if __name__ == "__main__":
-    """
+
     cfg = {}
     with open("configs/default.yaml", 'r') as stream:
         try:
             cfg = yaml.safe_load(stream)
         except yaml.YAMLError as exc:
             print(exc)
-    
+
     descriptorsFinder = cfg['descriptor']
     matcher = cfg['matcher']
-    query_img = cfg['query_path']
-    """
-
-    descriptorsFinder = 'orb'
-    matcher = 'flann'
 
     fds = sorted(os.listdir('oxbuild_images/'))
 
+    FLANN_ALGORITHM = 0
+    index_params = dict()
+
     if descriptorsFinder == 'orb':
-        detector = cv.ORB_create()
-        match = ORBMatch
+        FLANN_ALGORITHM = 1
+        index_params = dict(algorithm=FLANN_ALGORITHM,
+                            trees=5)
+        search_params = dict(checks=50)
     elif descriptorsFinder == 'sift':
-        detector = cv.SIFT_create()
-        match = SIFTMatch
+        FLANN_ALGORITHM = 1
+        index_params = dict(algorithm=FLANN_ALGORITHM,
+                            trees=5)
+        search_params = dict(checks=50)
     else:
         raise NotImplementedError('Wrong value of descriptor')
 
@@ -134,56 +125,66 @@ if __name__ == "__main__":
         raise NotImplementedError('Wrong value of descriptor')
 
     queries_array = sorted(os.listdir('gt_files_170407/'))
-    query_img_array = []
-    title_array = []
+    query_img_array = []   # будет содержать массив из названий query-изображений
+    title_array = []   # название файла, в котором содержится название query-изображения
 
     for file in queries_array:
         if file.endswith('query.txt'):
-            f = open('gt_files_170407/'+file)
+            f = open('gt_files_170407/' + file)
+            # Читаем в файле название query-изображения, так как само название файла его не содержит
             str = f.read()
             index = str.find(' ')
-            query_img_array.append(str[5:index]+'.jpg')
+            query_img_array.append(str[5:index] + '.jpg')
             title_array.append(file.replace('_query.txt', ''))
 
+    fds = fds[1:]   # первым будет файл .DS_Store, который не нужен
+
+    # Создаем матрицу, в которой будет содержать кол-во совпадений
+    result = [[0] * len(fds) for i in range(len(query_img_array))]
+    result = np.array(result)
+    img_index = 0
+
+    query_info = []
+
     for i in range(len(query_img_array)):
-        query_img = query_img_array[i]
-        print(query_img)
-        file_name = 'data/' + descriptorsFinder + '/' + query_img[:-4] + '_des.txt'
-        des1 = np.loadtxt(file_name).astype('float32')
+        query_path = query_img_array[i]
 
-        file_name = file_name.replace('_des', '_kp')
-        f = open(file_name, 'rb')
-        index = pickle.loads(f.read())
-        f.close()
-        kp1 = []
-        for point in index:
-            temp = cv.KeyPoint(x=point[0][0], y=point[0][1], _size=point[1], _angle=point[2],
-                               _response=point[3], _octave=point[4], _class_id=point[5])
-            kp1.append(temp)
+        query_image = cv.imread('oxbuild_images/' + query_path, cv.IMREAD_GRAYSCALE)
 
-        query_img = 'oxbuild_images/' + query_img_array[i]
-        img1 = cv.imread(query_img, cv.IMREAD_GRAYSCALE)  # queryImage
+        query_path = query_path.replace('.jpg', '')
+        initial_img = KeypointsAndDescriptors()
+        initial_img.read_descriptors(descriptorsFinder, query_path)
 
-        result = []
-        for img in fds[1:]:
-            if img.endswith('.jpg'):
-                # print(img)
-                tmp = match(img1, kp1, des1, img, matcher)
+        query_info.append([query_path, initial_img.descriptors])
+
+    start = time.time()
+    for img_path in fds:
+        if img_path.endswith('.jpg'):
+            print(img_path)
+
+            train_image = cv.imread('oxbuild_images/' + img_path, cv.IMREAD_GRAYSCALE)
+
+            img_path = img_path.replace('.jpg', '')
+            initial_img = KeypointsAndDescriptors()
+            initial_img.read_descriptors(descriptorsFinder, img_path)
+
+            for i in range(len(query_img_array)):
+                tmp = matcher(query_info[i][1], initial_img.descriptors, index_params, search_params)
                 if tmp is not None:
-                    tmp.append(img.replace('.jpg', ''))
-                    result.append(tmp)
+                    result[i, img_index] = tmp
 
-        result = Sort(result)
+            img_index += 1
+
+    # Выводим среднее время работы алгоритма для одного изображения-запроса
+    print((time.time() - start) / len(query_img_array))
+    
+    # Сортируем таблицу, а затем с помощью метрики подсчитываем, как хорошо работает алгоритм
+    sorted_result = np.argsort(result, axis=1)
+
+    for i in range(sorted_result.shape[0]):
         output_file = open('ranked_list.txt', 'w')
-        for index in range(len(result)):
-            output_file.write(result[index][6] + '\n')
+        for index in reversed(range(0, sorted_result.shape[1])):
+            output_file.write(fds[sorted_result[i, index]].replace('.jpg', '') + '\n')
         output_file.close()
-        compute_ap.compute('gt_files_170407/'+title_array[i])
-    """
-    for x in range(len(result)):
-        img3 = cv.drawMatches(result[x][0], result[x][1], result[x][2], result[x][3],
-                              result[x][4], None, **result[x][5])
-        plt.title('Top %d' % (x + 1),
-                  fontweight="bold")
-        plt.imshow(img3, 'gray'), plt.show()
-    """
+        print('gt_files_170407/' + title_array[i])
+        compute_ap.compute('gt_files_170407/' + title_array[i])
