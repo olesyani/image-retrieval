@@ -74,14 +74,13 @@ def FlannMatcher(des1, des2, params, search_params):
 
 def findHomography(matches):
     # Находим хорошие пары
+    # Для каждой точки сохраняется два лучших совпадения, если они достаточно разные, это проверяется Lowe's ratio test, приведенным ниже, то считается, что совпадение найдено, иначе считается, что match не найден
     good = []
     for m, n in matches:
-        if m.distance < 0.75 * n.distance:
+        if m.distance < 0.8 * n.distance:
             good.append(m)
 
-    MIN_MATCH_COUNT = 0
-
-    if len(good) > MIN_MATCH_COUNT:
+    if len(good) > 0:
         return len(good)
 
     return None
@@ -118,15 +117,15 @@ if __name__ == "__main__":
         raise NotImplementedError('Wrong value of descriptor')
 
     if matcher == 'brute-force':
-        matcher = BruteForceMatcher
+        matching = BruteForceMatcher
     elif matcher == 'flann':
-        matcher = FlannMatcher
+        matching = FlannMatcher
     else:
         raise NotImplementedError('Wrong value of descriptor')
 
     queries_array = sorted(os.listdir('gt_files_170407/'))
-    query_img_array = []   # будет содержать массив из названий query-изображений
-    title_array = []   # название файла, в котором содержится название query-изображения
+    query_img_array = []  # будет содержать массив из названий query-изображений
+    title_array = []  # название файла, в котором содержится название query-изображения
 
     for file in queries_array:
         if file.endswith('query.txt'):
@@ -137,7 +136,7 @@ if __name__ == "__main__":
             query_img_array.append(str[5:index] + '.jpg')
             title_array.append(file.replace('_query.txt', ''))
 
-    fds = fds[1:]   # первым будет файл .DS_Store, который не нужен
+    fds = fds[1:]  # первым будет файл .DS_Store, который не нужен
 
     # Создаем матрицу, в которой будет содержать кол-во совпадений
     result = [[0] * len(fds) for i in range(len(query_img_array))]
@@ -146,6 +145,9 @@ if __name__ == "__main__":
 
     query_info = []
 
+    start = time.time()
+    
+    # Чтобы каждый раз заново не читать keypoints и descriptors изображений-запросов, они будут храниться в памяти
     for i in range(len(query_img_array)):
         query_path = query_img_array[i]
 
@@ -154,10 +156,9 @@ if __name__ == "__main__":
         query_path = query_path.replace('.jpg', '')
         initial_img = KeypointsAndDescriptors()
         initial_img.read_descriptors(descriptorsFinder, query_path)
+        initial_img.read_keypoints(descriptorsFinder, query_path)
+        query_info.append([query_path, initial_img.descriptors, len(initial_img.keypoints)])
 
-        query_info.append([query_path, initial_img.descriptors])
-
-    start = time.time()
     for img_path in fds:
         if img_path.endswith('.jpg'):
             print(img_path)
@@ -167,24 +168,50 @@ if __name__ == "__main__":
             img_path = img_path.replace('.jpg', '')
             initial_img = KeypointsAndDescriptors()
             initial_img.read_descriptors(descriptorsFinder, img_path)
+            initial_img.read_keypoints(descriptorsFinder, img_path)
 
             for i in range(len(query_img_array)):
-                tmp = matcher(query_info[i][1], initial_img.descriptors, index_params, search_params)
+                tmp = matching(query_info[i][1], initial_img.descriptors, index_params, search_params)
+
                 if tmp is not None:
-                    result[i, img_index] = tmp
+                    number_keypoints = 0
+                    if query_info[i][2] >= len(initial_img.keypoints):
+                        number_keypoints = query_info[i][2]
+                    else:
+                        number_keypoints = len(initial_img.keypoints)
+
+                    # Нас интересует, какой процент ключевых точек от их общего числа схож у двух
+                    # изображений. По нему и отсортировываются изображения
+                    percentage_similarity = float(tmp) / number_keypoints * 100
+                    result[i, img_index] = percentage_similarity
 
             img_index += 1
 
     # Выводим среднее время работы алгоритма для одного изображения-запроса
-    print((time.time() - start) / len(query_img_array))
-    
+    worktime = (time.time() - start) / len(query_img_array)
+    print(worktime)
+
     # Сортируем таблицу, а затем с помощью метрики подсчитываем, как хорошо работает алгоритм
     sorted_result = np.argsort(result, axis=1)
 
+    # Переменная необходима для того, чтобы в итоге показать среднее значение MAP для всех изображений-запросов
+    average_map = 0.0
+
+    # Был создан файл для записи результатов
+    with open('experiments_results.txt', 'a') as results_file:
+        results_file.write('using ' + descriptorsFinder + ' and ' + matcher + '\n')
+        results_file.write('ratio test const = ' + distance_str + '\n')
+
     for i in range(sorted_result.shape[0]):
-        output_file = open('ranked_list.txt', 'w')
-        for index in reversed(range(0, sorted_result.shape[1])):
-            output_file.write(fds[sorted_result[i, index]].replace('.jpg', '') + '\n')
-        output_file.close()
+        with open('ranked_list.txt', 'w') as output_file:
+            for index in reversed(range(0, sorted_result.shape[1])):
+                output_file.write(fds[sorted_result[i, index]].replace('.jpg', '') + '\n')
+
         print('gt_files_170407/' + title_array[i])
-        compute_ap.compute('gt_files_170407/' + title_array[i])
+        initial_map = compute_ap.compute('gt_files_170407/' + title_array[i])
+        average_map = average_map + float(initial_map)
+        print(initial_map)
+        with open('experiments_results.txt', 'a') as results_file:
+            results_file.write(title_array[i] + ': ' + initial_map + '\n')
+
+    print(average_map/len(query_img_array))
