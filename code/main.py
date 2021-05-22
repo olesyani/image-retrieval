@@ -5,6 +5,9 @@ import yaml
 import pickle
 import os
 import compute_ap
+from joblib import Parallel, delayed
+
+DISTANCE = 0.7
 
 
 class KeypointsAndDescriptors:
@@ -74,11 +77,11 @@ def FlannMatcher(des1, des2, params, search_params):
 
 def findHomography(matches):
     # Находим хорошие пары
-    # Для каждой точки сохраняется два лучших совпадения, если они достаточно разные, это проверяется Lowe's ratio test, приведенным ниже, то считается, 
-    # что совпадение найдено, иначе считается, что match не найден
+    # Для каждой точки сохраняется два лучших совпадения, если они достаточно разные, это проверяется Lowe's ratio test,
+    # приведенным ниже, то считается, что совпадение найдено, иначе считается, что match не найден.
     good = []
     for m, n in matches:
-        if m.distance < 0.8 * n.distance:
+        if m.distance < DISTANCE * n.distance:
             good.append(m)
 
     if len(good) > 0:
@@ -87,7 +90,49 @@ def findHomography(matches):
     return None
 
 
+def readingQueries(query_img):
+    # Чтобы каждый раз заново не читать descriptors изображений-запросов, они будут храниться в памяти
+    query_path = query_img
+    query_path = query_path.replace('.jpg', '')
+    initial_img = KeypointsAndDescriptors()
+    initial_img.read_descriptors(descriptorsFinder, query_path)
+    num_of_kp = (initial_img.descriptors).shape[0]
+    return [query_path, initial_img.descriptors, num_of_kp]
+
+
+def matchingImages(img_path):
+    if img_path.endswith('.jpg'):
+        print(img_path)
+
+        list_result = []
+        img_path = img_path.replace('.jpg', '')
+        initial_img = KeypointsAndDescriptors()
+        initial_img.read_descriptors(descriptorsFinder, img_path)
+        num_of_kp = (initial_img.descriptors).shape[0]
+
+        for i in range(len(query_img_array)):
+            tmp = matching(query_info[i][1], initial_img.descriptors, index_params, search_params)
+
+            if tmp is not None:
+                number_keypoints = 0
+                if query_info[i][2] >= num_of_kp:
+                    number_keypoints = query_info[i][2]
+                else:
+                    number_keypoints = num_of_kp
+                    
+                # Нас интересует, какой процент ключевых точек от их общего числа схож у двух
+                # изображений. По нему и отсортировываются изображения
+                percentage_similarity = float(tmp) / number_keypoints * 100
+                list_result.append(percentage_similarity)
+
+            else:
+                list_result.append(0.0)
+
+        return list_result
+
+
 if __name__ == "__main__":
+    cv.setNumThreads(0)
 
     cfg = {}
     with open("configs/default.yaml", 'r') as stream:
@@ -132,68 +177,28 @@ if __name__ == "__main__":
         if file.endswith('query.txt'):
             f = open('gt_files_170407/' + file)
             # Читаем в файле название query-изображения, так как само название файла его не содержит
-            str = f.read()
-            index = str.find(' ')
-            query_img_array.append(str[5:index] + '.jpg')
+            file_str = f.read()
+            index = file_str.find(' ')
+            query_img_array.append(file_str[5:index] + '.jpg')
             title_array.append(file.replace('_query.txt', ''))
 
     fds = fds[1:]  # первым будет файл .DS_Store, который не нужен
 
     # Создаем матрицу, в которой будет содержать кол-во совпадений
-    result = [[0] * len(fds) for i in range(len(query_img_array))]
-    result = np.array(result)
     img_index = 0
 
-    query_info = []
-
     start = time.time()
-    
-    # Чтобы каждый раз заново не читать keypoints и descriptors изображений-запросов, они будут храниться в памяти
-    for i in range(len(query_img_array)):
-        query_path = query_img_array[i]
+    query_info = Parallel(n_jobs=4)(delayed(readingQueries)(query_img_array[i]) for i in range(len(query_img_array)))
 
-        query_image = cv.imread('oxbuild_images/' + query_path, cv.IMREAD_GRAYSCALE)
-
-        query_path = query_path.replace('.jpg', '')
-        initial_img = KeypointsAndDescriptors()
-        initial_img.read_descriptors(descriptorsFinder, query_path)
-        initial_img.read_keypoints(descriptorsFinder, query_path)
-        query_info.append([query_path, initial_img.descriptors, len(initial_img.keypoints)])
-
-    for img_path in fds:
-        if img_path.endswith('.jpg'):
-            print(img_path)
-
-            train_image = cv.imread('oxbuild_images/' + img_path, cv.IMREAD_GRAYSCALE)
-
-            img_path = img_path.replace('.jpg', '')
-            initial_img = KeypointsAndDescriptors()
-            initial_img.read_descriptors(descriptorsFinder, img_path)
-            initial_img.read_keypoints(descriptorsFinder, img_path)
-
-            for i in range(len(query_img_array)):
-                tmp = matching(query_info[i][1], initial_img.descriptors, index_params, search_params)
-
-                if tmp is not None:
-                    number_keypoints = 0
-                    if query_info[i][2] >= len(initial_img.keypoints):
-                        number_keypoints = query_info[i][2]
-                    else:
-                        number_keypoints = len(initial_img.keypoints)
-
-                    # Нас интересует, какой процент ключевых точек от их общего числа схож у двух
-                    # изображений. По нему и отсортировываются изображения
-                    percentage_similarity = float(tmp) / number_keypoints * 100
-                    result[i, img_index] = percentage_similarity
-
-            img_index += 1
+    nested_list_result = Parallel(n_jobs=4)(delayed(matchingImages)(i) for i in fds)
+    result = np.array(nested_list_result)
 
     # Выводим среднее время работы алгоритма для одного изображения-запроса
     worktime = (time.time() - start) / len(query_img_array)
     print(worktime)
 
     # Сортируем таблицу, а затем с помощью метрики подсчитываем, как хорошо работает алгоритм
-    sorted_result = np.argsort(result, axis=1)
+    sorted_result = np.argsort(result, axis=0)
 
     # Переменная необходима для того, чтобы в итоге показать среднее значение MAP для всех изображений-запросов
     average_map = 0.0
@@ -201,12 +206,12 @@ if __name__ == "__main__":
     # Был создан файл для записи результатов
     with open('experiments_results.txt', 'a') as results_file:
         results_file.write('using ' + descriptorsFinder + ' and ' + matcher + '\n')
-        results_file.write('ratio test const = ' + distance_str + '\n')
+        results_file.write('time per query: ' + str(worktime) + '\n')
 
-    for i in range(sorted_result.shape[0]):
+    for i in range(sorted_result.shape[1]):
         with open('ranked_list.txt', 'w') as output_file:
-            for index in reversed(range(0, sorted_result.shape[1])):
-                output_file.write(fds[sorted_result[i, index]].replace('.jpg', '') + '\n')
+            for index in reversed(range(0, sorted_result.shape[0])):
+                output_file.write(fds[sorted_result[index, i]].replace('.jpg', '') + '\n')
 
         print('gt_files_170407/' + title_array[i])
         initial_map = compute_ap.compute('gt_files_170407/' + title_array[i])
@@ -215,4 +220,8 @@ if __name__ == "__main__":
         with open('experiments_results.txt', 'a') as results_file:
             results_file.write(title_array[i] + ': ' + initial_map + '\n')
 
-    print(average_map/len(query_img_array))
+    with open('experiments_results.txt', 'a') as results_file:
+        tmp = average_map/len(query_img_array)
+        results_file.write('average map: ' + str(tmp) + '\n')
+
+        print(average_map/len(query_img_array))
