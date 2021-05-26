@@ -17,7 +17,7 @@ class KeypointsAndDescriptors:
 
     def read_keypoints(self, des_finder, path):
         # Считываем ключевые точки из файла
-        file = 'data/' + des_finder + '/' + path + '_kp.txt'
+        file = 'data/' + des_finder + '_upd/' + path + '_kp.txt'
         f = open(file, 'rb')
         index = pickle.loads(f.read())
         f.close()
@@ -59,18 +59,22 @@ class KeypointsAndDescriptors:
         np.savetxt(file_name, des)
 
 
-def BruteForceMatcher(des1, des2, params, search_params):
+def BruteForceMatcher(des1, des2):
     # Создаем BFMatcher object
     bf = cv.BFMatcher(cv.NORM_L1, crossCheck=False)
     matches = bf.knnMatch(des1, des2, k=2)
     return findHomography(matches)
 
 
-def FlannMatcher(des1, des2, params, search_params):
+def FlannMatcher(des1, des2):
     # Создаем FLANNMatcher object
+    FLANN_ALGORITHM = 1
+    index_params = dict(algorithm=FLANN_ALGORITHM,
+                        trees=5)
+    search_params = dict(checks=50)
     des1 = des1.astype(np.float32)
     des2 = des2.astype(np.float32)
-    flann = cv.FlannBasedMatcher(params, search_params)
+    flann = cv.FlannBasedMatcher(index_params, search_params)
     matches = flann.knnMatch(des1, des2, k=2)
     return findHomography(matches)
 
@@ -90,14 +94,14 @@ def findHomography(matches):
     return None
 
 
-def readingQueries(query_img):
-    # Чтобы каждый раз заново не читать descriptors изображений-запросов, они будут храниться в памяти
-    query_path = query_img
-    query_path = query_path.replace('.jpg', '')
-    initial_img = KeypointsAndDescriptors()
-    initial_img.read_descriptors(descriptorsFinder, query_path)
-    num_of_kp = (initial_img.descriptors).shape[0]
-    return [query_path, initial_img.descriptors, num_of_kp]
+def readingQueries(query_path):
+    if query_path.endswith('.jpg'):
+        # Чтобы каждый раз заново не читать descriptors изображений-запросов, они будут храниться в памяти
+        query_path = query_path.replace('.jpg', '')
+        initial_img = KeypointsAndDescriptors()
+        initial_img.read_descriptors(descriptorsFinder, query_path)
+        num_of_kp = (initial_img.descriptors).shape[0]
+        return [query_path, initial_img.descriptors, num_of_kp]
 
 
 def matchingImages(img_path):
@@ -110,8 +114,8 @@ def matchingImages(img_path):
         initial_img.read_descriptors(descriptorsFinder, img_path)
         num_of_kp = (initial_img.descriptors).shape[0]
 
-        for i in range(len(query_img_array)):
-            tmp = matching(query_info[i][1], initial_img.descriptors, index_params, search_params)
+        for i in range(len(queries_path_array)):
+            tmp = matching(query_info[i][1], initial_img.descriptors)
 
             if tmp is not None:
                 number_keypoints = 0
@@ -132,7 +136,6 @@ def matchingImages(img_path):
 
 
 if __name__ == "__main__":
-    cv.setNumThreads(0)
 
     cfg = {}
     with open("configs/default.yaml", 'r') as stream:
@@ -143,23 +146,11 @@ if __name__ == "__main__":
 
     descriptorsFinder = cfg['descriptor']
     matcher = cfg['matcher']
+    number_of_jobs = cfg['jobs']
 
-    fds = sorted(os.listdir('oxbuild_images/'))
+    img = sorted(os.listdir('oxbuild_images/'))
 
-    FLANN_ALGORITHM = 0
-    index_params = dict()
-
-    if descriptorsFinder == 'orb':
-        FLANN_ALGORITHM = 1
-        index_params = dict(algorithm=FLANN_ALGORITHM,
-                            trees=5)
-        search_params = dict(checks=50)
-    elif descriptorsFinder == 'sift':
-        FLANN_ALGORITHM = 1
-        index_params = dict(algorithm=FLANN_ALGORITHM,
-                            trees=5)
-        search_params = dict(checks=50)
-    else:
+    if descriptorsFinder != 'orb' and descriptorsFinder != 'sift':
         raise NotImplementedError('Wrong value of descriptor')
 
     if matcher == 'brute-force':
@@ -170,8 +161,8 @@ if __name__ == "__main__":
         raise NotImplementedError('Wrong value of descriptor')
 
     queries_array = sorted(os.listdir('gt_files_170407/'))
-    query_img_array = []  # будет содержать массив из названий query-изображений
-    title_array = []  # название файла, в котором содержится название query-изображения
+    queries_path_array = []  # будет содержать массив из названий query-изображений
+    title_array = []  # массив из названий файлов, в которых содержится query-изображения
 
     for file in queries_array:
         if file.endswith('query.txt'):
@@ -179,22 +170,20 @@ if __name__ == "__main__":
             # Читаем в файле название query-изображения, так как само название файла его не содержит
             file_str = f.read()
             index = file_str.find(' ')
-            query_img_array.append(file_str[5:index] + '.jpg')
+            queries_path_array.append(file_str[5:index] + '.jpg')
             title_array.append(file.replace('_query.txt', ''))
-
-    fds = fds[1:]  # первым будет файл .DS_Store, который не нужен
 
     # Создаем матрицу, в которой будет содержать кол-во совпадений
     img_index = 0
 
     start = time.time()
-    query_info = Parallel(n_jobs=4)(delayed(readingQueries)(query_img_array[i]) for i in range(len(query_img_array)))
+    query_info = Parallel(n_jobs=int(number_of_jobs))(delayed(readingQueries)(path) for path in queries_path_array)
 
-    nested_list_result = Parallel(n_jobs=4)(delayed(matchingImages)(i) for i in fds)
+    nested_list_result = Parallel(n_jobs=int(number_of_jobs))(delayed(matchingImages)(path) for path in img)
     result = np.array(nested_list_result)
 
     # Выводим среднее время работы алгоритма для одного изображения-запроса
-    worktime = (time.time() - start) / len(query_img_array)
+    worktime = (time.time() - start) / len(queries_path_array)
     print(worktime)
 
     # Сортируем таблицу, а затем с помощью метрики подсчитываем, как хорошо работает алгоритм
@@ -206,12 +195,13 @@ if __name__ == "__main__":
     # Был создан файл для записи результатов
     with open('experiments_results.txt', 'a') as results_file:
         results_file.write('using ' + descriptorsFinder + ' and ' + matcher + '\n')
+        results_file.write('n_jobs=' + number_of_jobs + '\n')
         results_file.write('time per query: ' + str(worktime) + '\n')
 
     for i in range(sorted_result.shape[1]):
         with open('ranked_list.txt', 'w') as output_file:
             for index in reversed(range(0, sorted_result.shape[0])):
-                output_file.write(fds[sorted_result[index, i]].replace('.jpg', '') + '\n')
+                output_file.write(img[sorted_result[index, i]].replace('.jpg', '') + '\n')
 
         print('gt_files_170407/' + title_array[i])
         initial_map = compute_ap.compute('gt_files_170407/' + title_array[i])
@@ -221,7 +211,7 @@ if __name__ == "__main__":
             results_file.write(title_array[i] + ': ' + initial_map + '\n')
 
     with open('experiments_results.txt', 'a') as results_file:
-        tmp = average_map/len(query_img_array)
+        tmp = average_map/len(queries_path_array)
         results_file.write('average map: ' + str(tmp) + '\n')
 
-        print(average_map/len(query_img_array))
+        print(average_map/len(queries_path_array))
