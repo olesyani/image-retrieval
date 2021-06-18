@@ -43,7 +43,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: new-artifact
-          path: /dist/main/main.exe
+          path: main
           retention-days: 5
 
   telegram:
