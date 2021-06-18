@@ -50,8 +50,8 @@ jobs:
         - name: first try
           uses: appleboy/telegram-action@master
           with:
-            to: ${{ secrets.TELEGRAM_TO }}
-            token: ${{ secrets.TELEGRAM_TOKEN }}
+            to: ${{ secrets.TELEGRAM_OLESIA }}
+            token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
             message: I would like to send you an artifact
 
         - name: Download artifact
@@ -65,6 +65,6 @@ jobs:
         - name: sending the file
           uses: appleboy/telegram-action@master
           with:
-            to: ${{ secrets.TELEGRAM_TO_DEBUG }}
-            token: ${{ secrets.TELEGRAM_TOKEN_DEBUG }}
+            to: ${{ secrets.TELEGRAM_OLESIA }}
+            token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
             document: main.exe
