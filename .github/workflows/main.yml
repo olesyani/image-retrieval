@@ -39,7 +39,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: new-artifact
-          path: ranked_list.txt
+          path: expretiments_results.txt
           retention-days: 5
 
   telegram:
