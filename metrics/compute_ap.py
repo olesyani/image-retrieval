@@ -32,7 +32,7 @@ def compute(arg):
 
     try:
         ranked_list = load_list(ranked_list_file)
-        pos_set = list(set(load_list("%s_good.txt" % arg) 
+        pos_set = list(set(load_list("%s_good.txt" % arg)
                            + load_list("%s_ok.txt" % arg)))
         junk_set = load_list("%s_junk.txt" % arg)
 
