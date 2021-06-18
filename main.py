@@ -5,7 +5,6 @@ import yaml
 import pickle
 import os
 from metrics import compute_ap
-from joblib import Parallel, delayed
 
 DISTANCE = 0.7
 
