@@ -34,16 +34,13 @@ jobs:
         run: pyinstaller main.py
         
       - name: finding artifact
-        run: |
-          cd dist
-          cd main
-          ls
+        run: ls
         
       - name: 'Upload Artifact'
         uses: actions/upload-artifact@v2
         with:
           name: new-artifact
-          path: main
+          path: dist/main/
           retention-days: 5
 
   telegram:
