@@ -231,8 +231,10 @@ if __name__ == "__main__":
         results_file.write('time per query: '
                            + str(worktime)
                            + '\n')
+    print(sorted_result)
+    print(sorted_result.shape)
 
-    for i in range(sorted_result.shape[1] - 1):
+    for i in range(sorted_result.shape[1]):
         with open('ranked_list.txt', 'w') as output_file:
             for index in reversed(range(0,
                                         sorted_result.shape[0])):
