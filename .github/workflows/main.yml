@@ -16,7 +16,50 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - uses: ilammy/msvc-dev-cmd@v1
+      
       - name: Install
         run: pip install flake8
+        
       - name: Check
         run: python -m flake8 ./
+        
+      - name: build
+        run: python main.py
+        
+      - name: ls
+        run: ls
+        
+      - name: 'Upload Artifact'
+        uses: actions/upload-artifact@v2
+        with:
+          name: new-artifact
+          path: main.exe
+          retention-days: 5
+
+  telegram:
+      runs-on: ubuntu-latest 
+      needs: build
+      steps:
+        - uses: actions/checkout@master
+        - name: first try
+          uses: appleboy/telegram-action@master
+          with:
+            to: ${{ secrets.TELEGRAM_TO }}
+            token: ${{ secrets.TELEGRAM_TOKEN }}
+            message: I would like to send you an artifact
+
+        - name: Download artifact
+          uses: actions/download-artifact@v2
+          with:
+            name: new-artifact
+
+        - name: ls
+          run: ls
+
+        - name: sending the file
+          uses: appleboy/telegram-action@master
+            with:
+            to: ${{ secrets.TELEGRAM_TO_DEBUG }}
+            token: ${{ secrets.TELEGRAM_TOKEN_DEBUG }}
+            document: main.exe
