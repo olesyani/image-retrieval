@@ -198,11 +198,12 @@ if __name__ == "__main__":
     img_index = 0
 
     start = time.time()
-    query_info = Parallel(n_jobs=int(number_of_jobs))
-    (delayed(readingQueries)(path) for path in queries_path_array)
+    for path in queries_path_array:
+        query_info = readingQueries(path)
 
-    nested_list_result = Parallel(n_jobs=int(number_of_jobs))
-    (delayed(matchingImages)(path) for path in img)
+    for path in img:
+        nested_list_result = matchingImages(path)
+
     result = np.array(nested_list_result)
 
     # Выводим среднее время работы алгоритма для одного
