@@ -27,7 +27,7 @@ jobs:
       - name: install packages
         run: |
           pip install opencv-python
-          pip install cpickle
+          pip install pickle-compat
           pip install joblib
         
       - name: build
