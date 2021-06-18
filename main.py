@@ -44,7 +44,7 @@ class KeypointsAndDescriptors:
         else:
             raise NotImplementedError('Wrong value of descriptor')
 
-        initial_img = cv.imread('oxbuild_images/' + path,
+        initial_img = cv.imread('data/oxbuild_images/' + path,
                                 cv.IMREAD_GRAYSCALE)
         kp, des = detector.detectAndCompute(initial_img, None)
         index = []
@@ -166,7 +166,7 @@ if __name__ == "__main__":
     matcher = cfg['matcher']
     number_of_jobs = cfg['jobs']
 
-    img = sorted(os.listdir('oxbuild_images/'))
+    img = sorted(os.listdir('data/oxbuild_images/'))
 
     if descriptorsFinder != 'orb' and descriptorsFinder != 'sift':
         raise NotImplementedError('Wrong value of descriptor')
