@@ -232,7 +232,7 @@ if __name__ == "__main__":
                            + str(worktime)
                            + '\n')
 
-    for i in range(sorted_result.shape[1]):
+    for i in range(sorted_result.shape[1] - 1):
         with open('ranked_list.txt', 'w') as output_file:
             for index in reversed(range(0,
                                         sorted_result.shape[0])):
