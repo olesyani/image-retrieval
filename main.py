@@ -3,9 +3,12 @@ import numpy as np
 import time
 import yaml
 import pickle
+import sys
 import os
-import metrics.compute_ap
 from joblib import Parallel, delayed
+sys.path.insert(1, '/metrics')
+
+import compute_ap
 
 DISTANCE = 0.7
 
@@ -241,7 +244,7 @@ if __name__ == "__main__":
                                                                 '') + '\n')
 
         print('gt_files_170407/' + title_array[i])
-        initial_map = metrics.compute_ap.compute('metrics/gt_files_170407/'
+        initial_map = compute_ap.compute('metrics/gt_files_170407/'
                                          + title_array[i])
         average_map = average_map + float(initial_map)
         print(initial_map)
