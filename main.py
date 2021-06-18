@@ -178,7 +178,7 @@ if __name__ == "__main__":
     else:
         raise NotImplementedError('Wrong value of descriptor')
 
-    queries_array = sorted(os.listdir('gt_files_170407/'))
+    queries_array = sorted(os.listdir('metrics/gt_files_170407/'))
     # будет содержать массив из названий query-изображений
     queries_path_array = []
     # массив из названий файлов, в которых содержится query-изображения
