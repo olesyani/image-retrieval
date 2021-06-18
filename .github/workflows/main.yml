@@ -28,9 +28,10 @@ jobs:
         run: |
           pip install opencv-python
           pip install pickle-compat
+          pip install pyinstaller
         
       - name: build
-        run: python main.py
+        run: pyinstaller main.py
         
       - name: ls
         run: ls
@@ -39,7 +40,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: new-artifact
-          path: main.exe
+          path: /dist/main/main.exe
           retention-days: 5
 
   telegram:
