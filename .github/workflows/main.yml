@@ -26,7 +26,7 @@ jobs:
         
       - name: install packages
         run: |
-          pip install cv2
+          pip install opencv-python
           pip install yaml
           pip install pickle
           pip install joblib
