@@ -3,12 +3,9 @@ import numpy as np
 import time
 import yaml
 import pickle
-import sys
 import os
+from metrics import compute_ap
 from joblib import Parallel, delayed
-sys.path.insert(1, '/metrics')
-
-import compute_ap
 
 DISTANCE = 0.7
 
