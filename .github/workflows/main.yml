@@ -28,7 +28,6 @@ jobs:
         run: |
           pip install opencv-python
           pip install pickle-compat
-          pip install joblib
         
       - name: build
         run: python main.py
