@@ -28,10 +28,9 @@ jobs:
         run: |
           pip install opencv-python
           pip install pickle-compat
-          pip install pyinstaller
         
       - name: build
-        run: pyinstaller main.py
+        run: python main.py
         
       - name: finding artifact
         run: ls
@@ -40,7 +39,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: new-artifact
-          path: dist/
+          path: ranked_list.txt
           retention-days: 5
 
   telegram:
@@ -53,7 +52,7 @@ jobs:
           with:
             to: ${{ secrets.TELEGRAM_OLESIA }}
             token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-            message: I would like to send you an exe file
+            message: I would like to send you an file with programm results
 
         - name: Download artifact
           uses: actions/download-artifact@v2
