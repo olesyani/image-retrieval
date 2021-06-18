@@ -197,13 +197,17 @@ if __name__ == "__main__":
 
     # Создаем матрицу, в которой будет содержать кол-во совпадений
     img_index = 0
+    query_info = []
+    nested_list_result = []
 
     start = time.time()
     for path in queries_path_array:
-        query_info = readingQueries(path)
+        if path.endswith('.jpg'):
+            query_info.append(readingQueries(path))
 
     for path in img:
-        nested_list_result = matchingImages(path)
+        if path.endswith('.jpg'):
+            nested_list_result.append(matchingImages(path))
 
     result = np.array(nested_list_result)
 
