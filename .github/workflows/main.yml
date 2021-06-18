@@ -33,8 +33,11 @@ jobs:
       - name: build
         run: pyinstaller main.py
         
-      - name: ls
-        run: ls
+      - name: finding artifact
+        run: |
+          cd dist
+          cd main
+          ls
         
       - name: 'Upload Artifact'
         uses: actions/upload-artifact@v2
