@@ -72,7 +72,9 @@ class KeypointsAndDescriptors:
 def BruteForceMatcher(des1, des2):
     # Создаем BFMatcher object
     bf = cv.BFMatcher(cv.NORM_L1, crossCheck=False)
-    matches = bf.knnMatch(np.asarray(des1,np.float32),np.asarray(des2,np.float32),k=2)
+    matches = bf.knnMatch(np.asarray(des1, np.float32),
+                          np.asarray(des2, np.float32),
+                          k=2)
     return findHomography(matches)
 
 
