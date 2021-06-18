@@ -53,7 +53,7 @@ jobs:
           with:
             to: ${{ secrets.TELEGRAM_OLESIA }}
             token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-            message: I would like to send you an artifact
+            message: I would like to send you an exe file
 
         - name: Download artifact
           uses: actions/download-artifact@v2
@@ -68,4 +68,4 @@ jobs:
           with:
             to: ${{ secrets.TELEGRAM_OLESIA }}
             token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-            document: main.exe
+            document: new-artifact
