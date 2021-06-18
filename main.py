@@ -156,16 +156,8 @@ def matchingImages(img_path):
 
 if __name__ == "__main__":
 
-    cfg = {}
-    with open("configs/default.yaml", 'r') as stream:
-        try:
-            cfg = yaml.safe_load(stream)
-        except yaml.YAMLError as exc:
-            print(exc)
-
-    descriptorsFinder = cfg['descriptor']
-    matcher = cfg['matcher']
-    number_of_jobs = cfg['jobs']
+    descriptorsFinder = 'orb'
+    matcher = 'brute-force'
 
     img = sorted(os.listdir('data/oxbuild_images/'))
 
