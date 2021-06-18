@@ -241,7 +241,7 @@ if __name__ == "__main__":
                                                                 '') + '\n')
 
         print('gt_files_170407/' + title_array[i])
-        initial_map = compute_ap.compute('metrics/gt_files_170407/'
+        initial_map = metrics.compute_ap.compute('metrics/gt_files_170407/'
                                          + title_array[i])
         average_map = average_map + float(initial_map)
         print(initial_map)
