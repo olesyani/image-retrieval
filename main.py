@@ -1,7 +1,6 @@
 import cv2 as cv
 import numpy as np
 import time
-import yaml
 import pickle
 import os
 from metrics import compute_ap
@@ -222,9 +221,6 @@ if __name__ == "__main__":
                            + descriptorsFinder
                            + ' and '
                            + matcher
-                           + '\n')
-        results_file.write('n_jobs='
-                           + number_of_jobs
                            + '\n')
         results_file.write('time per query: '
                            + str(worktime)
