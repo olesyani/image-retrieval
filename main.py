@@ -1,11 +1,9 @@
 import cv2 as cv
 import numpy as np
 import time
-import yaml
 import pickle
 import os
-import compute_ap
-from joblib import Parallel, delayed
+from metrics import compute_ap
 
 DISTANCE = 0.7
 
@@ -22,8 +20,13 @@ class KeypointsAndDescriptors:
         index = pickle.loads(f.read())
         f.close()
         for point in index:
-            tmp = cv.KeyPoint(x=point[0][0], y=point[0][1], _size=point[1], _angle=point[2],
-                              _response=point[3], _octave=point[4], _class_id=point[5])
+            tmp = cv.KeyPoint(x=point[0][0],
+                              y=point[0][1],
+                              _size=point[1],
+                              _angle=point[2],
+                              _response=point[3],
+                              _octave=point[4],
+                              _class_id=point[5])
             self.keypoints.append(tmp)
 
     def read_descriptors(self, des_finder, path):
@@ -39,11 +42,16 @@ class KeypointsAndDescriptors:
         else:
             raise NotImplementedError('Wrong value of descriptor')
 
-        initial_img = cv.imread('oxbuild_images/' + path, cv.IMREAD_GRAYSCALE)
+        initial_img = cv.imread('data/oxbuild_images/' + path,
+                                cv.IMREAD_GRAYSCALE)
         kp, des = detector.detectAndCompute(initial_img, None)
         index = []
         for point in kp:
-            temp = (point.pt, point.size, point.angle, point.response, point.octave,
+            temp = (point.pt,
+                    point.size,
+                    point.angle,
+                    point.response,
+                    point.octave,
                     point.class_id)
             index.append(temp)
         path = path.replace('.jpg', '')
@@ -51,7 +59,8 @@ class KeypointsAndDescriptors:
         # Записываем ключевые точки в файл
         file_name = 'data/' + des_finder + '/' + path + '_kp.txt'
         f = open(file_name, "wb")
-        f.write(pickle.dumps(index, protocol=pickle.HIGHEST_PROTOCOL))
+        f.write(pickle.dumps(index,
+                             protocol=pickle.HIGHEST_PROTOCOL))
         f.close()
 
         # Записываем дескрипторы точки в файл
@@ -62,7 +71,9 @@ class KeypointsAndDescriptors:
 def BruteForceMatcher(des1, des2):
     # Создаем BFMatcher object
     bf = cv.BFMatcher(cv.NORM_L1, crossCheck=False)
-    matches = bf.knnMatch(des1, des2, k=2)
+    matches = bf.knnMatch(np.asarray(des1, np.float32),
+                          np.asarray(des2, np.float32),
+                          k=2)
     return findHomography(matches)
 
 
@@ -81,8 +92,10 @@ def FlannMatcher(des1, des2):
 
 def findHomography(matches):
     # Находим хорошие пары
-    # Для каждой точки сохраняется два лучших совпадения, если они достаточно разные, это проверяется Lowe's ratio test,
-    # приведенным ниже, то считается, что совпадение найдено, иначе считается, что match не найден.
+    # Для каждой точки сохраняется два лучших совпадения, если
+    # они достаточно разные, это проверяется Lowe's ratio test,
+    # приведенным ниже, то считается, что совпадение найдено,
+    # иначе считается, что match не найден.
     good = []
     for m, n in matches:
         if m.distance < DISTANCE * n.distance:
@@ -96,10 +109,12 @@ def findHomography(matches):
 
 def readingQueries(query_path):
     if query_path.endswith('.jpg'):
-        # Чтобы каждый раз заново не читать descriptors изображений-запросов, они будут храниться в памяти
+        # Чтобы каждый раз заново не читать descriptors
+        # изображений-запросов, они будут храниться в памяти
         query_path = query_path.replace('.jpg', '')
         initial_img = KeypointsAndDescriptors()
-        initial_img.read_descriptors(descriptorsFinder, query_path)
+        initial_img.read_descriptors(descriptorsFinder,
+                                     query_path)
         num_of_kp = (initial_img.descriptors).shape[0]
         return [query_path, initial_img.descriptors, num_of_kp]
 
@@ -111,11 +126,13 @@ def matchingImages(img_path):
         list_result = []
         img_path = img_path.replace('.jpg', '')
         initial_img = KeypointsAndDescriptors()
-        initial_img.read_descriptors(descriptorsFinder, img_path)
+        initial_img.read_descriptors(descriptorsFinder,
+                                     img_path)
         num_of_kp = (initial_img.descriptors).shape[0]
 
         for i in range(len(queries_path_array)):
-            tmp = matching(query_info[i][1], initial_img.descriptors)
+            tmp = matching(query_info[i][1],
+                           initial_img.descriptors)
 
             if tmp is not None:
                 number_keypoints = 0
@@ -123,9 +140,10 @@ def matchingImages(img_path):
                     number_keypoints = query_info[i][2]
                 else:
                     number_keypoints = num_of_kp
-                    
-                # Нас интересует, какой процент ключевых точек от их общего числа схож у двух
-                # изображений. По нему и отсортировываются изображения
+
+                # Нас интересует, какой процент ключевых точек от
+                # их общего числа схож у двух изображений.
+                # По нему и отсортировываются изображения
                 percentage_similarity = float(tmp) / number_keypoints * 100
                 list_result.append(percentage_similarity)
 
@@ -137,18 +155,10 @@ def matchingImages(img_path):
 
 if __name__ == "__main__":
 
-    cfg = {}
-    with open("configs/default.yaml", 'r') as stream:
-        try:
-            cfg = yaml.safe_load(stream)
-        except yaml.YAMLError as exc:
-            print(exc)
+    descriptorsFinder = 'orb'
+    matcher = 'brute-force'
 
-    descriptorsFinder = cfg['descriptor']
-    matcher = cfg['matcher']
-    number_of_jobs = cfg['jobs']
-
-    img = sorted(os.listdir('oxbuild_images/'))
+    img = sorted(os.listdir('data/oxbuild_images/'))
 
     if descriptorsFinder != 'orb' and descriptorsFinder != 'sift':
         raise NotImplementedError('Wrong value of descriptor')
@@ -160,14 +170,17 @@ if __name__ == "__main__":
     else:
         raise NotImplementedError('Wrong value of descriptor')
 
-    queries_array = sorted(os.listdir('gt_files_170407/'))
-    queries_path_array = []  # будет содержать массив из названий query-изображений
-    title_array = []  # массив из названий файлов, в которых содержится query-изображения
+    queries_array = sorted(os.listdir('metrics/gt_files_170407/'))
+    # будет содержать массив из названий query-изображений
+    queries_path_array = []
+    # массив из названий файлов, в которых содержится query-изображения
+    title_array = []
 
     for file in queries_array:
         if file.endswith('query.txt'):
             f = open('metrics/gt_files_170407/' + file)
-            # Читаем в файле название query-изображения, так как само название файла его не содержит
+            # Читаем в файле название query-изображения,
+            # так как само название файла его не содержит
             file_str = f.read()
             index = file_str.find(' ')
             queries_path_array.append(file_str[5:index] + '.jpg')
@@ -175,36 +188,57 @@ if __name__ == "__main__":
 
     # Создаем матрицу, в которой будет содержать кол-во совпадений
     img_index = 0
+    query_info = []
+    nested_list_result = []
 
     start = time.time()
-    query_info = Parallel(n_jobs=int(number_of_jobs))(delayed(readingQueries)(path) for path in queries_path_array)
+    for path in queries_path_array:
+        if path.endswith('.jpg'):
+            query_info.append(readingQueries(path))
 
-    nested_list_result = Parallel(n_jobs=int(number_of_jobs))(delayed(matchingImages)(path) for path in img)
+    for path in img:
+        if path.endswith('.jpg'):
+            nested_list_result.append(matchingImages(path))
+
     result = np.array(nested_list_result)
 
-    # Выводим среднее время работы алгоритма для одного изображения-запроса
+    # Выводим среднее время работы алгоритма для одного
+    # изображения-запроса
     worktime = (time.time() - start) / len(queries_path_array)
     print(worktime)
 
-    # Сортируем таблицу, а затем с помощью метрики подсчитываем, как хорошо работает алгоритм
+    # Сортируем таблицу, а затем с помощью метрики подсчитываем,
+    # как хорошо работает алгоритм
     sorted_result = np.argsort(result, axis=0)
 
-    # Переменная необходима для того, чтобы в итоге показать среднее значение MAP для всех изображений-запросов
+    # Переменная необходима для того, чтобы в итоге показать среднее
+    # значение MAP для всех изображений-запросов
     average_map = 0.0
 
     # Был создан файл для записи результатов
     with open('experiments_results.txt', 'a') as results_file:
-        results_file.write('using ' + descriptorsFinder + ' and ' + matcher + '\n')
-        results_file.write('n_jobs=' + number_of_jobs + '\n')
-        results_file.write('time per query: ' + str(worktime) + '\n')
+        results_file.write('using '
+                           + descriptorsFinder
+                           + ' and '
+                           + matcher
+                           + '\n')
+        results_file.write('time per query: '
+                           + str(worktime)
+                           + '\n')
+    print(sorted_result)
+    print(sorted_result.shape)
 
     for i in range(sorted_result.shape[1]):
         with open('ranked_list.txt', 'w') as output_file:
-            for index in reversed(range(0, sorted_result.shape[0])):
-                output_file.write(img[sorted_result[index, i]].replace('.jpg', '') + '\n')
+            for index in reversed(range(0,
+                                        sorted_result.shape[0])):
+                output_file.write(img[sorted_result[index,
+                                                    i]].replace('.jpg',
+                                                                '') + '\n')
 
         print('gt_files_170407/' + title_array[i])
-        initial_map = compute_ap.compute('metrics/gt_files_170407/' + title_array[i])
+        initial_map = compute_ap.compute('metrics/gt_files_170407/'
+                                         + title_array[i])
         average_map = average_map + float(initial_map)
         print(initial_map)
         with open('experiments_results.txt', 'a') as results_file:

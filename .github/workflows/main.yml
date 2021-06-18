@@ -1,0 +1,70 @@
+# This is a basic workflow to help you get started with Actions
+
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+
+  workflow_dispatch:
+
+jobs:
+  CodeStyle_and_Build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: ilammy/msvc-dev-cmd@v1
+      
+      - name: Install
+        run: pip install flake8
+        
+      - name: Check
+        run: python -m flake8 ./
+        
+      - name: install packages
+        run: |
+          pip install opencv-python
+          pip install pickle-compat
+        
+      - name: build
+        run: python main.py
+        
+      - name: finding artifact
+        run: ls
+        
+      - name: 'Upload Artifact'
+        uses: actions/upload-artifact@v2
+        with:
+          name: new-artifact
+          path: experiments_results.txt
+          retention-days: 5
+
+  telegram:
+      runs-on: ubuntu-latest 
+      needs: CodeStyle_and_Build
+      steps:
+        - uses: actions/checkout@master
+        - name: first try
+          uses: appleboy/telegram-action@master
+          with:
+            to: ${{ secrets.TELEGRAM_OLESIA }}
+            token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+            message: I would like to send you an file with programm results
+
+        - name: Download artifact
+          uses: actions/download-artifact@v2
+          with:
+            name: new-artifact
+
+        - name: ls
+          run: ls
+
+        - name: sending the file
+          uses: appleboy/telegram-action@master
+          with:
+            to: ${{ secrets.TELEGRAM_OLESIA }}
+            token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+            document: new-artifact
