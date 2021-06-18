@@ -24,6 +24,13 @@ jobs:
       - name: Check
         run: python -m flake8 ./
         
+      - name: install packages
+        run: |
+          pip install cv2
+          pip install yaml
+          pip install pickle
+          pip install joblib
+        
       - name: build
         run: python main.py
         
