@@ -50,7 +50,7 @@ class KeypointsAndDescriptors:
         index = []
         for point in kp:
             temp = (point.pt,
-                    point.size, 
+                    point.size,
                     point.angle,
                     point.response,
                     point.octave,
@@ -237,7 +237,7 @@ if __name__ == "__main__":
             for index in reversed(range(0,
                                         sorted_result.shape[0])):
                 output_file.write(img[sorted_result[index,
-                                                    i]].replace('.jpg', 
+                                                    i]].replace('.jpg',
                                                                 '') + '\n')
 
         print('gt_files_170407/' + title_array[i])
